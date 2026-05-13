@@ -303,12 +303,14 @@ def generate_vllm(
     streaming=False,
     endpoint=None,
     seed=0,
-    debug_txt=""
+    debug_txt="",
+    tokenizer_id=None
 ):
 
     output = None
     case_1 = 0
     case_2 = 0
+    _tok_id = tokenizer_id if tokenizer_id else model
 
     for sleep_time in [1, 2, 4, 8, 16, 32]:
 
@@ -324,10 +326,10 @@ def generate_vllm(
                     )
 
 
-            if model in ['THUDM/glm-4-9b-chat', 'internlm/internlm3-8b-instruct', 'LGAI-EXAONE/EXAONE-3.5-7.8B-Instruct']:
-                tokenizer = AutoTokenizer.from_pretrained(model, trust_remote_code=True)
+            if _tok_id in ['THUDM/glm-4-9b-chat', 'internlm/internlm3-8b-instruct', 'LGAI-EXAONE/EXAONE-3.5-7.8B-Instruct']:
+                tokenizer = AutoTokenizer.from_pretrained(_tok_id, trust_remote_code=True)
             else:
-                tokenizer = AutoTokenizer.from_pretrained(model)
+                tokenizer = AutoTokenizer.from_pretrained(_tok_id)
 
             if isinstance(messages[0], str):
                 msg = [{"role": "user", "content": messages[0]}]
@@ -396,10 +398,10 @@ def generate_vllm(
                 # max_token legnth issue
                 logger.debug(e)
                 refine_prompt = False
-                if model in ['THUDM/glm-4-9b-chat', 'internlm/internlm3-8b-instruct', 'LGAI-EXAONE/EXAONE-3.5-7.8B-Instruct']:
-                    config = AutoConfig.from_pretrained(model, trust_remote_code=True)
+                if _tok_id in ['THUDM/glm-4-9b-chat', 'internlm/internlm3-8b-instruct', 'LGAI-EXAONE/EXAONE-3.5-7.8B-Instruct']:
+                    config = AutoConfig.from_pretrained(_tok_id, trust_remote_code=True)
                 else:
-                    config = AutoConfig.from_pretrained(model)
+                    config = AutoConfig.from_pretrained(_tok_id)
                 max_token_length = config.max_position_embeddings
 
                 input_token_length = input_token_count
