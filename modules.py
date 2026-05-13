@@ -9,7 +9,7 @@ CONFIDENCE_THRESHOLD = 0.1  # Replace model if confidence < this or N/A
 
 def generate_initial_response_with_confidence(
     model_id, endpoint, instruction, data=None, num_choice=4,
-    temperature=0.7, max_tokens=800, seed=0, debug_txt=""
+    temperature=0.7, max_tokens=800, seed=0, debug_txt="", tokenizer_id=None
 ):
     """
     Generate initial response with confidence using JSON-formatted prompt.
@@ -42,7 +42,8 @@ def generate_initial_response_with_confidence(
         max_tokens=max_tokens,
         endpoint=endpoint,
         debug_txt=debug_txt,
-        seed=seed
+        seed=seed,
+        tokenizer_id=tokenizer_id
     )
 
     # Parse the response
@@ -87,7 +88,8 @@ def maybe_replace_with_general(
         temperature=temperature,
         max_tokens=max_tokens,
         seed=seed,
-        debug_txt=f"[Replacement - {general_model_name} for {node_name}] "
+        debug_txt=f"[Replacement - {general_model_name} for {node_name}] ",
+        tokenizer_id=general_dict.get("tokenizer_id")
     )
 
     initial_responses[node_idx] = raw_response
@@ -97,7 +99,7 @@ def maybe_replace_with_general(
 
     return True, i_t_c, o_t_c
 
-def node_sampling_model_card(model, endpoint, messages, model_info_dict, top_k=4, temperature=0.7, max_tokens=512, seed=0):
+def node_sampling_model_card(model, endpoint, messages, model_info_dict, top_k=4, temperature=0.7, max_tokens=512, seed=0, tokenizer_id=None):
     """
     Sample top-K relevant models based on the question and model descriptions.
     Simplified prompt: single combined instruction, no repeated criteria.
@@ -131,7 +133,8 @@ def node_sampling_model_card(model, endpoint, messages, model_info_dict, top_k=4
                 max_tokens=10,
                 temperature=temperature,
                 debug_txt="[Node Sampling - Difficulty] ",
-                seed=seed
+                seed=seed,
+                tokenizer_id=tokenizer_id
             )
 
             input_token_total += input_token_count
@@ -190,7 +193,8 @@ def node_sampling_model_card(model, endpoint, messages, model_info_dict, top_k=4
                 max_tokens=max_tokens,
                 temperature=temperature,
                 debug_txt="[Node Sampling] ",
-                seed=seed
+                seed=seed,
+                tokenizer_id=tokenizer_id
             )
 
             input_token_total += input_token_count
@@ -337,7 +341,8 @@ def edge_sampling(models_dict, model_name_idx, initial_responses, messages, temp
                     max_tokens=max_tokens,
                     temperature=temperature,
                     debug_txt=f"[Edge Sampling - {model_name}]",
-                    seed=seed
+                    seed=seed,
+                    tokenizer_id=models_dict[model_name].get("tokenizer_id")
                     )
 
                 try:
@@ -483,7 +488,8 @@ def _run_s_to_t(model_endpoint_dict, model_name_idx, initial_responses, target_e
             max_tokens=max_tokens,
             temperature=temperature,
             debug_txt=f"[Round {round}] [(S -> T): Refining Target] ",
-            seed=seed
+            seed=seed,
+            tokenizer_id=model_endpoint_dict[target_model_name].get("tokenizer_id")
         )
 
         input_token_total += input_token_count
@@ -539,7 +545,8 @@ def _run_t_to_s(model_endpoint_dict, model_name_idx, initial_responses, source_e
             max_tokens=max_tokens,
             temperature=temperature,
             debug_txt=f"[Round {round}] [(T -> S): Updating Source] ",
-            seed=seed
+            seed=seed,
+            tokenizer_id=model_endpoint_dict[source_model_name].get("tokenizer_id")
         )
 
         input_token_total += input_token_count
@@ -587,7 +594,7 @@ def message_passing(model_endpoint_dict, model_name_idx, initial_responses, sour
 
 
 
-def graph_pooling(model, endpoint, refined_response, messages, weights=None, temperature=0.7, max_tokens=512, final_prompt='', seed=0):
+def graph_pooling(model, endpoint, refined_response, messages, weights=None, temperature=0.7, max_tokens=512, final_prompt='', seed=0, tokenizer_id=None):
     """
     Aggregate responses from all nodes into a single final response.
     """
@@ -631,7 +638,8 @@ def graph_pooling(model, endpoint, refined_response, messages, weights=None, tem
             max_tokens=max_tokens,
             temperature=temperature,
             debug_txt=debug_txt,
-            seed=seed
+            seed=seed,
+            tokenizer_id=tokenizer_id
         )
 
         return final_response, input_token_count, output_token_count

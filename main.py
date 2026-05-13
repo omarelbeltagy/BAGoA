@@ -123,6 +123,7 @@ def process_fn(
     num_choice=4,
     final_prompt='',
     seed=0,
+    ollama=False,
 ):
     if data == "human_eval":
         task_id = item["task_id"]
@@ -135,12 +136,23 @@ def process_fn(
     start_time = time()
 
     reference_model_dict = model_endpoint_dict[meta_llm]
-    meta_llm_model_name = reference_model_dict['model_id']
-    meta_llm_model_endpoint = reference_model_dict['url']
+    if ollama:
+        meta_llm_model_name = reference_model_dict['ollama_model_id']
+        meta_llm_model_endpoint = reference_model_dict['ollama_url']
+        meta_llm_tokenizer_id = reference_model_dict['model_id']
+    else:
+        meta_llm_model_name = reference_model_dict['model_id']
+        meta_llm_model_endpoint = reference_model_dict['url']
+        meta_llm_tokenizer_id = None
     meta_llm_model_name_graph = meta_llm_model_name
     meta_llm_model_endpoint_graph = meta_llm_model_endpoint
 
     models_dict = {k: v for k, v in model_endpoint_dict.items() if k in reference_models}
+    if ollama:
+        models_dict = {
+            k: {**v, "url": v["ollama_url"], "model_id": v["ollama_model_id"], "tokenizer_id": v["model_id"]}
+            for k, v in models_dict.items()
+        }
 
     # 1. Node Sampling
     logger.info("Node Sampling")
@@ -153,7 +165,8 @@ def process_fn(
             top_k=top_k,
             temperature=temperature,
             max_tokens=max_tokens,
-            seed=seed
+            seed=seed,
+            tokenizer_id=meta_llm_tokenizer_id
         )
 
     input_token_total += i_t_c
@@ -180,7 +193,8 @@ def process_fn(
             temperature=temperature,
             max_tokens=max_tokens,
             seed=seed,
-            debug_txt="[Initial Response] "
+            debug_txt="[Initial Response] ",
+            tokenizer_id=node_model_dict.get("tokenizer_id")
         )
         final_response = raw_resp
 
@@ -210,7 +224,8 @@ def process_fn(
                 temperature=temperature,
                 max_tokens=max_tokens,
                 seed=seed,
-                debug_txt=f"[Initial Response - {uname}] "
+                debug_txt=f"[Initial Response - {uname}] ",
+                tokenizer_id=node_model_dict.get("tokenizer_id")
             )
 
             initial_responses[i] = raw_resp
@@ -289,6 +304,7 @@ def process_fn(
                     max_tokens=max_tokens,
                     final_prompt=final_prompt,
                     seed=seed,
+                    tokenizer_id=meta_llm_tokenizer_id,
                 )
                 input_token_total += i_t_c
                 output_token_total += o_t_c
@@ -370,6 +386,7 @@ def process_fn(
                             max_tokens=max_tokens,
                             final_prompt=final_prompt,
                             seed=seed,
+                            tokenizer_id=meta_llm_tokenizer_id,
                         )
 
                         input_token_total += i_t_c
@@ -434,6 +451,7 @@ def main(
     num_proc: int = 1,
     threshold: float = 0.05,
     seed: int = 0,
+    ollama: bool = False,
 ):
 
     seed_everything(seed=seed)
@@ -569,6 +587,7 @@ def main(
                 num_choice=num_choice,
                 final_prompt=final_prompt,
                 seed=seed,
+                ollama=ollama,
             ),
             batched=False,
             num_proc=num_proc,
