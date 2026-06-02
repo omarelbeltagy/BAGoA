@@ -514,11 +514,19 @@ def main(
         elif data.lower() in ['math', 'math_sampled']:
             num_choice = 0
             is_math = True
+        elif data.lower() == 'bbq':
+            num_choice = 3
+            is_math = False
 
         eval_dict = {
                 'question': [item['question'] for item in samples],
                 'gold_answer': [item['gold_answer'] for item in samples]
         }
+
+        if data.lower() == 'bbq':
+            for key in ['context_condition', 'category', 'question_polarity',
+                        'stereotype_ans_idx', 'unknown_ans_idx', 'example_id', 'question_index']:
+                eval_dict[key] = [item.get(key) for item in samples]
 
         eval_set = Dataset.from_dict(eval_dict)
 
