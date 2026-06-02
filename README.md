@@ -43,6 +43,87 @@ curl http://localhost:8000/v1/models
 
 The model endpoints are configured in `endpoint.py`. Update the URLs and ports there if your setup differs.
 
+## RunPod Deployment (6× L40S)
+
+This section covers running GoA on RunPod using 6× NVIDIA L40S GPUs — one model per GPU, matching the original paper setup.
+
+### Pod Configuration
+
+- **Template**: PyTorch (provides torch, transformers, vLLM pre-installed — no conda env needed)
+- **GPUs**: 6× L40S (48GB VRAM each)
+- **Container disk**: at least 13.5GB
+- **Volume disk**: at least 122.6GB (stores downloaded model weights persistently at `/workspace`)
+- **Branch**: `l40s`
+
+> **Note**: RunPod's nginx proxy reserves port 8001. The `l40s` branch remaps `qwen_coder` to port 8006.
+
+### Setup Steps
+
+**1. Install missing project dependencies** (PyTorch template already provides torch, vllm, transformers, numpy, requests, loguru):
+
+```bash
+pip install -r requirements.txt
+```
+
+**2. Set environment variables** (required on every new session before launching servers):
+
+```bash
+export HF_HOME=/workspace/hf_cache
+export HF_TOKEN=your_huggingface_token
+export HUGGING_FACE_HUB_TOKEN=$HF_TOKEN
+```
+
+**3. Launch all 6 model servers** (models download automatically on first run to `/workspace/hf_cache`; load from cache on subsequent runs):
+
+```bash
+mkdir -p /workspace/logs /workspace/hf_cache
+
+CUDA_VISIBLE_DEVICES=0 nohup vllm serve Qwen/Qwen2.5-7B-Instruct \
+    --port 8000 --dtype float16 > /workspace/logs/8000.log 2>&1 &
+
+CUDA_VISIBLE_DEVICES=1 nohup vllm serve Qwen/Qwen2.5-Coder-7B-Instruct \
+    --port 8006 --dtype float16 > /workspace/logs/8006.log 2>&1 &
+
+CUDA_VISIBLE_DEVICES=2 nohup vllm serve mistralai/Mathstral-7B-v0.1 \
+    --port 8002 --dtype float16 > /workspace/logs/8002.log 2>&1 &
+
+CUDA_VISIBLE_DEVICES=3 nohup vllm serve ContactDoctor/Bio-Medical-Llama-3-8B \
+    --port 8003 --dtype float16 > /workspace/logs/8003.log 2>&1 &
+
+CUDA_VISIBLE_DEVICES=4 nohup vllm serve instruction-pretrain/finance-Llama3-8B \
+    --port 8004 --dtype float16 > /workspace/logs/8004.log 2>&1 &
+
+CUDA_VISIBLE_DEVICES=5 nohup vllm serve Equall/Saul-7B-Instruct-v1 \
+    --port 8005 --dtype float16 > /workspace/logs/8005.log 2>&1 &
+```
+
+**4. Verify all servers are ready** (first run: 20–40 min to download; subsequent runs: ~3 min from cache):
+
+```bash
+for port in 8000 8006 8002 8003 8004 8005; do
+    echo -n "Port $port: "
+    curl -s http://localhost:$port/v1/models | python3 -c \
+        "import sys,json; d=json.load(sys.stdin); print('OK -', d['data'][0]['id'])" \
+        2>/dev/null || echo "NOT READY"
+done
+```
+
+**5. Clone the project and run:**
+
+```bash
+cd /workspace
+git clone -b l40s https://github.com/Omar-Beltagui/BAGoA.git
+cd BAGoA
+python main.py \
+    --data MMLU_sampled \
+    --eval dev \
+    --reference_models qwen,qwen_coder,mathstral,biomedical_llama,finance_llama,saul \
+    --meta_llm qwen \
+    --graph_pooling_method mean \
+    --top_k 3 \
+    --seed 0
+```
+
 ## 3. Running GoA
 
 **Dev run** (small sample for quick testing):
