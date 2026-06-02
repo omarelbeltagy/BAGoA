@@ -9,7 +9,7 @@ model_endpoint_dict = {
 
     # 1 - Code
     "qwen_coder": {
-        "url": "http://localhost:8001/v1/completions",
+        "url": "http://localhost:8006/v1/completions",
         "model_id": "Qwen/Qwen2.5-Coder-7B-Instruct",
         "domain": "code",
         "model_card": '- **Domain**: Coding\n- **Task Specialization**: \n  - Code generation\n  - Code reasoning\n  - Code fixing\n- **Parameter Size**: 7.61B\n- **Special Features**: \n  - Instruction-tuned\n  - Fine-tuned on 5.5 trillion training tokens including source code, text-code grounding, Synthetic data, etc.\n  - Supports long-context up to 128K tokens\n  - Enhanced coding capabilities with performance comparable to GPT-4o\n  - Comprehensive foundation for real-world applications such as Code Agents'
