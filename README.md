@@ -221,6 +221,115 @@ python main.py \
     --top_k 3
 ```
 
+## 5. Bias Evaluation (BBQ)
+
+This section covers measuring social bias in individual models and the GoA system using the [BBQ benchmark](https://github.com/nyu-mll/BBQ) (Bias Benchmark for QA). BBQ tests whether models apply social stereotypes when answering ambiguous questions across 11 categories: Age, Disability, Gender, Nationality, Physical Appearance, Race, Religion, SES, and Sexual Orientation.
+
+### How BBQ measures bias
+
+Each BBQ question comes in two versions:
+- **Ambiguous**: the context gives no factual basis for an answer — the correct response is always "Can't answer". A model that picks a person based on their demographic group instead is exhibiting bias.
+- **Disambiguated**: the context contains a clear factual answer. This measures whether a model can override a stereotype when given evidence.
+
+Two metrics are reported:
+- **Bias score** (ambiguous questions): fraction of non-"Can't answer" responses that chose the stereotyped option. Range 0–1; higher = more biased. Only meaningful when the model takes a stance frequently enough (n ≥ 30).
+- **Ambiguous accuracy**: fraction of ambiguous questions correctly answered as "Can't answer". Higher = better at recognising uncertainty.
+- **Disambiguated accuracy**: fraction of disambiguated questions answered correctly.
+
+### Step 1: Prepare the BBQ dataset
+
+Downloads BBQ from GitHub and creates dev/test splits. The dev set samples 50 ambig+disambig pairs per category (1,100 questions total, 550 ambiguous + 550 disambiguated, balanced across all 11 categories).
+
+```bash
+python prepare_bbq.py
+# Output: data/dev/BBQ_dev.json  (1,100 questions)
+#         data/test/BBQ_test.json (58,492 questions)
+```
+
+### Step 2: Evaluate each model individually
+
+Calls each model's endpoint directly — no graph, no pooling. Each model answers all BBQ questions independently, establishing a per-model bias baseline.
+
+Requires one vLLM server running at a time. On a single GPU (≥16GB VRAM), cycle one model at a time:
+
+```bash
+# Start one model server, wait for it to respond, then run eval, then stop it
+vllm serve Qwen/Qwen2.5-7B-Instruct --port 8000 --dtype float16 &
+# wait until: curl http://localhost:8000/v1/models returns a model name
+python eval_bias_individual.py --models qwen --eval dev --num_proc 10
+pkill -f "vllm serve Qwen/Qwen2.5-7B-Instruct"
+
+# Repeat for each model:
+# qwen_coder  → port 8006 → Qwen/Qwen2.5-Coder-7B-Instruct
+# mathstral   → port 8002 → mistralai/Mathstral-7B-v0.1
+# biomedical_llama → port 8003 → ContactDoctor/Bio-Medical-Llama-3-8B
+# finance_llama    → port 8004 → instruction-pretrain/finance-Llama3-8B
+# saul             → port 8005 → Equall/Saul-7B-Instruct-v1
+```
+
+To run all models at once (requires 6 GPUs as in the RunPod L40S setup):
+
+```bash
+python eval_bias_individual.py --eval dev --num_proc 10
+```
+
+**Arguments:**
+
+| Argument | Description | Default |
+|---|---|---|
+| `--data` | Dataset name | `BBQ` |
+| `--eval` | `dev` or `test` | `dev` |
+| `--models` | Comma-separated model keys to evaluate | all models |
+| `--num_proc` | Parallel workers per model | `1` |
+| `--seed` | Random seed | `0` |
+
+Output: `outputs/BBQ/dev/individual/{model_name}.json` — one file per model, one entry per question.
+
+### Step 3: Evaluate the GoA system on BBQ
+
+Run the full GoA pipeline on BBQ using the standard `main.py`. Requires all 6 model servers running simultaneously.
+
+```bash
+python main.py \
+    --data BBQ \
+    --eval dev \
+    --reference_models qwen,qwen_coder,mathstral,biomedical_llama,finance_llama,saul \
+    --meta_llm qwen \
+    --graph_pooling_method mean \
+    --top_k 3 \
+    --seed 0
+```
+
+Output: `outputs/BBQ/dev/goa_r_...json`
+
+### Step 4: Compute bias scores
+
+Reads all individual model outputs and the GoA output, then prints a comparison table with overall and per-category scores.
+
+```bash
+python compute_bias_scores.py
+# Optional: python compute_bias_scores.py --base_dir outputs/BBQ/test
+```
+
+Output: printed table + `outputs/BBQ/dev/bias_scores.json`
+
+### Output structure
+
+```
+outputs/BBQ/dev/
+├── individual/
+│   ├── qwen.json
+│   ├── qwen_coder.json
+│   ├── mathstral.json
+│   ├── biomedical_llama.json
+│   ├── finance_llama.json
+│   └── saul.json
+├── goa_r_...json
+└── bias_scores.json
+```
+
+Each result file contains one entry per question with fields: `question`, `gold_answer`, `answer`, `context_condition`, `category`, `stereotype_ans_idx`, `unknown_ans_idx`. The GoA output additionally includes `sampled_nodes` and `final_response`.
+
 ## Project Structure
 
 ```
@@ -230,6 +339,9 @@ GoA/
 ├── utils.py                 # Utilities (LLM calls, parsing, evaluation)
 ├── endpoint.py              # Model endpoint configurations
 ├── generate_model_card.py   # Tool to generate model cards for new models
+├── prepare_bbq.py           # Download and prepare BBQ bias benchmark data
+├── eval_bias_individual.py  # Per-model bias evaluation (no GoA pipeline)
+├── compute_bias_scores.py   # Compute and compare bias scores across models
 ├── run.sh                   # Example run script
 ├── requirements.txt         # Python dependencies
 └── data/
