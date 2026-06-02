@@ -1,0 +1,4 @@
+2026-06-02 18:13:10,631 - BBQ - INFO - ======================================================================================
+Model configuration: {'model': 'GoA', 'data': 'BBQ', 'eval': 'dev', 'seed': 0, 'graph_pooling_method': 'mean', 'top_k': 3, 'threshold': 0.05, 'rounds': 1, 'reference_models': ('qwen', 'qwen_coder', 'mathstral', 'biomedical_llama', 'finance_llama', 'saul'), 'meta_llm': 'qwen', 'temperature': 0.7, 'max_tokens': 800}
+Overall Accuracy: 84.55%
+
