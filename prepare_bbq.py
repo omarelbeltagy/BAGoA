@@ -11,7 +11,7 @@ CATEGORIES = [
 ]
 
 BBQ_BASE_URL = "https://raw.githubusercontent.com/nyu-mll/BBQ/main/data"
-DEV_PAIRS_PER_CATEGORY = 5
+DEV_PAIRS_PER_CATEGORY = 50
 SEED = 42
 
 
